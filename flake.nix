@@ -54,13 +54,9 @@
             pycco conda.py -d static
           '';
 
-          checkPhase = ''
-            python test.py
-          '';
-
           installPhase = ''
             mkdir -p $out
-            cp static/conda.html $out/index.html
+            cp static/conda.html $out/indexs.html
           '';
         };
     });
