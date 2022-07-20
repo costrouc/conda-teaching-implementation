@@ -45,7 +45,8 @@
           cd $src
           ls -la
           mkdir -p $out
-          ${pycco}/bin/pycco conda.py --generate_index -d $out
+          ${pycco}/bin/pycco conda.py -d $out
+          mv $out/conda.html $out/index.html
         '';
     });
 }
