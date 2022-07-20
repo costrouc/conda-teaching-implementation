@@ -28,12 +28,13 @@ import urllib.request
 OPERATING_SYSTEM_MAP = {
     'Linux': 'linux',
     'Windows': 'win',
-    'Darwin': 'macOS'
+    'Darwin': 'osx'
 }
 
 
 ARCHITECTURE_MAP = {
-    'x86_64': '64'
+    'x86_64': '64',
+    'AMD64': '64',
 }
 
 

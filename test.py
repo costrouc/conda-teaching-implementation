@@ -21,6 +21,7 @@ packages = [
     "flask",
 ]
 
+print('detected platform subdir', conda.platform_subdir())
 
 conda.download_channel(repodata_directory, channel_url)
 print(f'Reopdata downloaded: {os.listdir(repodata_directory)}')
