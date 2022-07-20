@@ -241,7 +241,7 @@ def dummy_solve(available_packages: Dict[str, List], package_specs: List[str]):
     return stack
 
 
-def _dummy_solve(availale_packages: Dict[str, List], stack: List[Dict], initial_constraints: Dict[str, Set[str]]):
+def _dummy_solve(available_packages: Dict[str, List], stack: List[Dict], initial_constraints: Dict[str, Set[str]]):
     constraints = collect_constraints(stack, initial_constraints)
     stack_package_names = {_['name'] for _ in stack}
 
