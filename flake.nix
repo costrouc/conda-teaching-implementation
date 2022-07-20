@@ -56,7 +56,7 @@
 
           installPhase = ''
             mkdir -p $out
-            cp static/conda.html $out/indexs.html
+            cp static/conda.html $out/index.html
           '';
         };
     });
