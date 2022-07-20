@@ -20,7 +20,7 @@
       <h1>Conda Teaching Implementation</h1>
 <p>Have you ever wondered how Conda works? I sure have! In the process I
 have asked many core developers questions since I could not find
-documentation</p>
+documentation.</p>
     </div>
     <div class='code'>
       <div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Tuple</span>
@@ -440,7 +440,7 @@ documentation</p>
       
     </div>
     <div class='code'>
-      <div class="highlight"><pre><span class="k">def</span> <span class="nf">_dummy_solve</span><span class="p">(</span><span class="n">availale_packages</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">],</span> <span class="n">stack</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">],</span> <span class="n">initial_constraints</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]):</span>
+      <div class="highlight"><pre><span class="k">def</span> <span class="nf">_dummy_solve</span><span class="p">(</span><span class="n">available_packages</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">],</span> <span class="n">stack</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">],</span> <span class="n">initial_constraints</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]):</span>
     <span class="n">constraints</span> <span class="o">=</span> <span class="n">collect_constraints</span><span class="p">(</span><span class="n">stack</span><span class="p">,</span> <span class="n">initial_constraints</span><span class="p">)</span>
     <span class="n">stack_package_names</span> <span class="o">=</span> <span class="p">{</span><span class="n">_</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">stack</span><span class="p">}</span>
 
