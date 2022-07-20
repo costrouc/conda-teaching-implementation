@@ -21,28 +21,42 @@ import re
 import re
 import shutil
 import ssl
+import sys
+import struct
 import tarfile
 import urllib.request
 
+PLATFORM_MAP = {
+    'linux2': 'linux',
+    'linux': 'linux',
+    'darwin': 'osx',
+    'win32': 'win',
+    'zos': 'zos',
+}
 
-OPERATING_SYSTEM_MAP = {
-    'Linux': 'linux',
-    'Windows': 'win',
-    'Darwin': 'osx'
+NON_X86_MACHINES = {
+    'armv6l',
+    'armv7l',
+    'aarch64',
+    'arm64',
+    'ppc64',
+    'ppc64le',
+    's390x',
 }
 
 
-ARCHITECTURE_MAP = {
-    'x86_64': '64',
-    'AMD64': '64',
-}
+def platform_subdir():
+    """Determine the subdir that corresponds to
 
-
-def platform_subdir(
-    operating_system: str = platform.system(),
-    architecture: str = platform.machine()
-):
-    return f'{OPERATING_SYSTEM_MAP[operating_system]}-{ARCHITECTURE_MAP[architecture]}'
+    """
+    _platform = PLATFORM_MAP.get(sys.platform, "unknown")
+    machine = platform.machine()
+    if machine in NON_X86_MACHINES:
+        return f"{_platform}-{machine}"
+    elif _platform == "zos-z":
+        return "zos-z"
+    else:
+        return f"{_platform}-{8 * struct.calcsize('P')}"
 
 
 def repodata_identifiers(directory: pathlib.Path, channel_url: str, subdir: str):
@@ -358,7 +372,7 @@ def detect_python_version(packages: List[Dict]):
 
 def copy_package(package_cache_directory: pathlib.Path, install_directory: pathlib.Path, package: Dict):
     package_directory = package_cache_directory / f"{package['name']}-{package['version']}-{package['build']}"
-    shutil.copytree(package_directory, install_directory, copy_function=os.link, dirs_exist_ok=True, ignore=shutil.ignore_patterns("info", "libz.so.1", "libz.so.1.2.11"))
+    shutil.copytree(package_directory, install_directory, copy_function=os.link, dirs_exist_ok=True, ignore=shutil.ignore_patterns("info"))
 
 
 def install_packages(package_cache_directory: pathlib.Path, install_directory: pathlib.Path, packages: List[Dict]):
