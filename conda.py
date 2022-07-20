@@ -20,6 +20,7 @@ import platform
 import re
 import re
 import shutil
+import shlex
 import ssl
 import sys
 import struct
@@ -275,7 +276,7 @@ def _dummy_solve(available_packages: Dict[str, List], stack: List[Dict], initial
 
             package = select_package(available_packages, stack, package_name, initial_constraints)
             if package is None:
-                raise ValueError(f'package {package_name} not found need to back track {stack} options {available_packages[package_name]}')
+                raise ValueError(f'package {package_name} not found need to back track {stack} options {available_packages[package_name]} with constraints {constraints}')
             stack.append(package)
 
         constraints = collect_constraints(stack, initial_constraints)
@@ -348,7 +349,8 @@ def fix_prefix(package_cache_directory: pathlib.Path, install_directory: pathlib
 
     with prefix_filename.open() as f:
         for line in f:
-            placeholder, file_type, filename = line.split()
+            tokens = [_.strip('"\'') for _ in shlex.split(line, posix=False)]
+            placeholder, file_type, filename = tokens
 
             if sys.platform == 'win32' and file_type == 'text':
                 # force all prefix replacements to forward slashes to simplify need to
