@@ -275,7 +275,7 @@ def _dummy_solve(available_packages: Dict[str, List], stack: List[Dict], initial
 
             package = select_package(available_packages, stack, package_name, initial_constraints)
             if package is None:
-                raise ValueError(f'package {package_name} not found need to back track {stack}')
+                raise ValueError(f'package {package_name} not found need to back track {stack} options {available_packages[package_name]}')
             stack.append(package)
 
         constraints = collect_constraints(stack, initial_constraints)
