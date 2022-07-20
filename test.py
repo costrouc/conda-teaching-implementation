@@ -17,8 +17,7 @@ package_cache_directory.mkdir(exist_ok=True)
 install_directory = directory / "install_directory"
 
 packages = [
-    "python >=3.8,<3.9",
-    "flask",
+    "python ==3.8",
 ]
 
 print('detected platform subdir', conda.platform_subdir())
@@ -38,7 +37,7 @@ print(f'Cached packages: {os.listdir(package_cache_directory)}')
 
 conda.install_packages(package_cache_directory, install_directory, selected_packages)
 test_command = f'''
-{install_directory / "bin" / "python"} -c "import sys; print(sys.path); print(sys.version); assert sys.version_info[:2] == (3, 8); import flask;"
+{install_directory / "bin" / "python"} -c "import sys; print(sys.path); print(sys.version); assert sys.version_info[:2] == (3, 8);"
 '''
 print(f'Running test command in environment: "{test_command}"')
 output = subprocess.check_output(test_command, shell=True, encoding='utf-8')

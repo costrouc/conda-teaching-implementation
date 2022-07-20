@@ -46,7 +46,9 @@ NON_X86_MACHINES = {
 
 
 def platform_subdir():
-    """Determine the subdir that corresponds to
+    """Determine the subdir that corresponds to the given platform (os
+    and architecture). The format is roughly
+    "<platform>-<architecture>".
 
     """
     _platform = PLATFORM_MAP.get(sys.platform, "unknown")
@@ -60,6 +62,11 @@ def platform_subdir():
 
 
 def repodata_identifiers(directory: pathlib.Path, channel_url: str, subdir: str):
+    """Define a predictable mapping of url <-> repodata filename on the
+    filesystem that is a function `f(directory, channel_url, subdir)` this
+    allows for the repodata to be efficiently cached.
+
+    """
     url = f"{channel_url}/{subdir}/repodata.json.bz2"
     url_hash = hashlib.sha256(url.encode('utf-8')).hexdigest()[:8]
     filename = directory / f"repodata-{subdir}-{url_hash}.json.bz2"
@@ -318,49 +325,37 @@ def binary_replace(data, placeholder, new_prefix):
     return pat.sub(replace, data)
 
 
-def replace_prefix_text(conda_prefix: pathlib.Path, filename: pathlib.Path, substring: str):
-    with filename.open("rb") as f:
-        buffer = f.read()
+def update_prefix(placeholder: str, file_type: str, filename: pathlib.Path, install_directory: pathlib.Path):
+    with filename.open("rb") as _f:
+        data = _f.read()
 
-    buffer = re.sub(re.escape(substring), re.escape(str(conda_prefix)), buffer)
+    if file_type == "text":
+        data = text_replace(data, placeholder, str(install_directory))
+    elif file_type == "binary":
+        data = binary_replace(data, placeholder.encode('utf-8'), str(install_directory).encode('utf-8'))
 
-    with filename.open("wb") as f:
-        f.write(buffer)
-
-
-def replace_prefix_binary(conda_prefix: pathlib.Path, filename: pathlib.Path, substring: str):
-    with filename.open("rb") as f:
-        buffer = f.read()
-
-    substring = substring.encode('utf-8')
-    buffer = re.sub(re.escape(substring), re.escape(str(conda_prefix)), buffer)
-
-    with filename.open("w") as f:
-        f.write(buffer)
+    with filename.open('wb') as _f:
+        _f.write(data)
 
 
 def fix_prefix(package_cache_directory: pathlib.Path, install_directory: pathlib.Path, package: Dict):
     package_directory = package_cache_directory / f"{package['name']}-{package['version']}-{package['build']}"
-    has_prefix_file = package_directory / "info" / "has_prefix"
+    prefix_filename = package_directory / "info" / "has_prefix"
 
-    if not has_prefix_file.is_file():
+    # no prefixes to fix if the file "<package-name>/info/has_prefix" does not exist
+    if not prefix_filename.is_file():
        return
 
-    with has_prefix_file.open() as f:
+    with prefix_filename.open() as f:
         for line in f:
-            substring, file_type, filename = line.split()
-            filename_path = package_directory / filename
+            placeholder, file_type, filename = line.split()
 
-            with filename_path.open("rb") as _f:
-                data = _f.read()
+            if sys.platform == 'win32' and file_type == 'text':
+                # force all prefix replacements to forward slashes to simplify need to
+                # escape backslashes replace with unix-style path separators
+                filename = filename.replace('\\', '/')
 
-            if file_type == "text":
-                data = text_replace(data, substring, str(install_directory))
-            elif file_type == "binary":
-                data = binary_replace(data, substring.encode('utf-8'), str(install_directory).encode('utf-8'))
-
-            with filename_path.open('wb') as _f:
-                _f.write(data)
+            update_prefix(placeholder, file_type, package_directory / filename, install_directory)
 
 
 def detect_python_version(packages: List[Dict]):
