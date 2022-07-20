@@ -14,8 +14,10 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - run: nix build
+      - name: "Build and test :gear:"
+        run: nix build
 
-      - uses: actions/deploy-pages
+      - name: "Deploy 🚀"
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          folder: result
