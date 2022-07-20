@@ -2,7 +2,7 @@
 
 Have you ever wondered how Conda works? I sure have! In the process I
 have asked many core developers questions since I could not find
-documentation
+documentation.
 
 """
 

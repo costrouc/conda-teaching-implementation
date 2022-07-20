@@ -39,14 +39,29 @@
         };
 
       packages.x86_64-linux.default =
-        pkgs.runCommand "website" {
+        pkgs.stdenv.mkDerivation {
+          name = "conda-teaching-inplementation";
+
           src = ./.;
-        } ''
-          cd $src
-          ls -la
-          mkdir -p $out
-          ${pycco}/bin/pycco conda.py -d $out
-          mv $out/conda.html $out/index.html
-        '';
+
+          buildInputs = [
+            pkgs.python3
+            pycco
+          ];
+
+          buildPhase = ''
+            mkdir -p static
+            pycco conda.py -d static
+          '';
+
+          checkPhase = ''
+            python test.py
+          '';
+
+          installPhase = ''
+            mkdir -p $out
+            cp static/conda.html $out/index.html
+          '';
+        };
     });
 }
