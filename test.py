@@ -1,6 +1,7 @@
 import tempfile
 import pathlib
 import os
+import subprocess
 
 import conda
 
@@ -35,3 +36,9 @@ conda.download_packages(package_cache_directory, selected_packages, channel_url)
 print(f'Cached packages: {os.listdir(package_cache_directory)}')
 
 conda.install_packages(package_cache_directory, install_directory, selected_packages)
+test_command = f'''
+{install_directory / "bin" / "python"} -c "import sys; print(sys.path); print(sys.version); assert sys.version_info[:2] == (3, 8); import flask;"
+'''
+print(f'Running test command in environment: "{test_command}"')
+output = subprocess.check_output(test_command, shell=True, encoding='utf-8')
+print(f'Test output {output}')
