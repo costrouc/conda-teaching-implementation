@@ -1,8 +1,6 @@
 """# Conda Teaching Implementation
 
-Have you ever wondered how Conda works? I sure have! In the process I
-have asked many core developers questions since I could not find
-the documentation. At a high level Conda has several stages:
+Have you ever wondered how Conda works? I sure have! In the process I have asked many core developers questions since I could not find the documentation. At a high level Conda has several stages:
 
 1. Download the repodata `download_repodata(...)` for given channels
 2. Load all the packages within repodata `load_packages(...)`
@@ -57,9 +55,7 @@ NON_X86_MACHINES = {
 
 
 def platform_subdir():
-    """Determine the subdir that corresponds to the given platform (os
-    and architecture). The format is roughly
-    "<platform>-<architecture>".
+    """Determine the subdir that corresponds to the given platform (os and architecture). The format is roughly `<platform>-<architecture>`.
 
     """
     _platform = PLATFORM_MAP.get(sys.platform, "unknown")
@@ -122,6 +118,7 @@ def download_channel(directory: pathlib.Path, channel_url: str, subdirs: List[st
 
 
 def load_repodata_packages(directory: pathlib.Path, channel_url: str, subdir: str) -> Dict[str, List]:
+    """Open bzipped json file and add to a dictionary"""
     filename, _ = repodata_identifiers(directory, channel_url, subdir)
     with bz2.open(filename) as f:
         data = json.load(f)
@@ -143,16 +140,22 @@ def load_packages(directory: pathlib.Path, channel_url: str, subdirs: List[str] 
     return packages
 
 
+# ## Parse and check constraints
+
+
 def check_build_constraint(build_constraint: str, package: Dict):
+    """Check build constraint within package depends statements
+
+    Build constraints are simple expressions with regular characters and wildcards `*`. Examples include:
+      - `py38_0`
+      - `py38_*`
+    """
     if build_constraint is None:
         return True
 
     return re.fullmatch(
         re.sub(r'\\\*', r'.*', re.escape(build_constraint)),
         package['build']) is not None
-
-
-# ## Parse and check constraints
 
 
 def check_version_compare_constraint(version_constraint: str, version: Tuple):
