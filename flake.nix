@@ -56,6 +56,7 @@
 
           installPhase = ''
             mkdir -p $out
+            cp static/pycco.css $out/pycco.css
             cp static/conda.html $out/index.html
           '';
         };
