@@ -2,8 +2,15 @@
 
 Have you ever wondered how Conda works? I sure have! In the process I
 have asked many core developers questions since I could not find
-documentation.
+the documentation. At a high level Conda has several stages:
 
+1. Download the repodata `download_repodata(...)` for given channels
+2. Load all the packages within repodata `load_packages(...)`
+3. Select packages that satisfy given package constraints `dummy_solve(...)`
+4. Download and extract all packages from solve in package cache directory `download_packages(...)`
+5. Install all packages from solve into environment `install_packages(...)`. This involes a hardlink copy and rewriting all files in `info/has_prefix`
+
+A fully working script example can be seen in [test.py](https://github.com/costrouc/conda-teaching-implementation/blob/master/test.py).
 """
 
 from typing import List, Dict, Callable, Set, Tuple
@@ -45,6 +52,7 @@ NON_X86_MACHINES = {
     's390x',
 }
 
+# ## Download repodata
 
 def platform_subdir():
     """Determine the subdir that corresponds to the given platform (os
@@ -75,6 +83,11 @@ def repodata_identifiers(directory: pathlib.Path, channel_url: str, subdir: str)
 
 
 def download_object_storage_file(url: str, filename: pathlib.Path, no_exist_ok: bool = False):
+    """A simple implementation to efficiently download a file from
+    S3. A small optimization was made here to only download the file
+    if it has been modified since the last time we downloaded it.
+
+    """
     headers = {}
     if filename.is_file():
         current_timezone = datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo
@@ -101,12 +114,19 @@ def download_repodata(directory: pathlib.Path, channel_url: str, subdir: str, no
 
 
 def download_channel(directory: pathlib.Path, channel_url: str, subdirs: List[str] = None, no_exist_ok: bool = False):
+    """A channel consists of a set of subdirs which have all the
+    packages needed to build an environment.
+
+    """
     subdirs = subdirs or ['noarch', platform_subdir()]
     for subdir in subdirs:
         download_repodata(directory, channel_url, subdir, no_exist_ok)
 
 
-def load_repodata_packages(directory: pathlib.Path, channel_url: str, subdir: str):
+# ## Load packages
+
+
+def load_repodata_packages(directory: pathlib.Path, channel_url: str, subdir: str) -> Dict[str, List]:
     filename, _ = repodata_identifiers(directory, channel_url, subdir)
     with bz2.open(filename) as f:
         data = json.load(f)
@@ -117,7 +137,7 @@ def load_repodata_packages(directory: pathlib.Path, channel_url: str, subdir: st
     return packages
 
 
-def load_packages(directory: pathlib.Path, channel_url: str, subdirs: List[str] = None):
+def load_packages(directory: pathlib.Path, channel_url: str, subdirs: List[str] = None) -> Dict[str, List]:
     subdirs = subdirs or ['noarch', platform_subdir()]
 
     packages = collections.defaultdict(list)
@@ -326,10 +346,6 @@ def text_replace(data, placeholder, new_prefix):
 
 
 def binary_replace(data, placeholder, new_prefix):
-    """Perform a binary replacement of `data`, where ``placeholder`` is
-        replaced with ``new_prefix`` and the remaining string is padded with null
-        characters.  All input arguments are expected to be bytes objects."""
-
     def replace(match):
         occurances = match.group().count(placeholder)
         padding = (len(placeholder) - len(new_prefix)) * occurances
