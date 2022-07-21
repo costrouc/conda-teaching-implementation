@@ -37,20 +37,29 @@ documentation.</p>
 <span class="kn">import</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">shlex</span>
 <span class="kn">import</span> <span class="nn">ssl</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">struct</span>
 <span class="kn">import</span> <span class="nn">tarfile</span>
 <span class="kn">import</span> <span class="nn">urllib.request</span>
 
-
-<span class="n">OPERATING_SYSTEM_MAP</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;Linux&#39;</span><span class="p">:</span> <span class="s1">&#39;linux&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;Windows&#39;</span><span class="p">:</span> <span class="s1">&#39;win&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;Darwin&#39;</span><span class="p">:</span> <span class="s1">&#39;macOS&#39;</span>
+<span class="n">PLATFORM_MAP</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;linux2&#39;</span><span class="p">:</span> <span class="s1">&#39;linux&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;linux&#39;</span><span class="p">:</span> <span class="s1">&#39;linux&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;darwin&#39;</span><span class="p">:</span> <span class="s1">&#39;osx&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;win32&#39;</span><span class="p">:</span> <span class="s1">&#39;win&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;zos&#39;</span><span class="p">:</span> <span class="s1">&#39;zos&#39;</span><span class="p">,</span>
 <span class="p">}</span>
 
-
-<span class="n">ARCHITECTURE_MAP</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;x86_64&#39;</span><span class="p">:</span> <span class="s1">&#39;64&#39;</span>
+<span class="n">NON_X86_MACHINES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;armv6l&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;armv7l&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;aarch64&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;arm64&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;ppc64&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;ppc64le&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;s390x&#39;</span><span class="p">,</span>
 <span class="p">}</span></pre></div>
     </div>
   </div>
@@ -60,14 +69,10 @@ documentation.</p>
       <div class='octowrap'>
         <a class='octothorpe' href='#section-1'>#</a>
       </div>
-      
+      <p>Determine the subdir that corresponds to the given platform (os</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre><span class="k">def</span> <span class="nf">platform_subdir</span><span class="p">(</span>
-    <span class="n">operating_system</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">(),</span>
-    <span class="n">architecture</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">machine</span><span class="p">()</span>
-<span class="p">):</span>
-    <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">OPERATING_SYSTEM_MAP</span><span class="p">[</span><span class="n">operating_system</span><span class="p">]</span><span class="si">}</span><span class="s1">-</span><span class="si">{</span><span class="n">ARCHITECTURE_MAP</span><span class="p">[</span><span class="n">architecture</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span></pre></div>
+      <div class="highlight"><pre><span class="k">def</span> <span class="nf">platform_subdir</span><span class="p">():</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div>
@@ -76,14 +81,18 @@ documentation.</p>
       <div class='octowrap'>
         <a class='octothorpe' href='#section-2'>#</a>
       </div>
-      
+      <p>and architecture). The format is roughly
+&ldquo;<platform>-<architecture>&ldquo;.</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre><span class="k">def</span> <span class="nf">repodata_identifiers</span><span class="p">(</span><span class="n">directory</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span> <span class="n">channel_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">subdir</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-    <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">channel_url</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">subdir</span><span class="si">}</span><span class="s2">/repodata.json.bz2&quot;</span>
-    <span class="n">url_hash</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">url</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">8</span><span class="p">]</span>
-    <span class="n">filename</span> <span class="o">=</span> <span class="n">directory</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;repodata-</span><span class="si">{</span><span class="n">subdir</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">url_hash</span><span class="si">}</span><span class="s2">.json.bz2&quot;</span>
-    <span class="k">return</span> <span class="n">filename</span><span class="p">,</span> <span class="n">url</span></pre></div>
+      <div class="highlight"><pre>    <span class="n">_platform</span> <span class="o">=</span> <span class="n">PLATFORM_MAP</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">platform</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span><span class="p">)</span>
+    <span class="n">machine</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">machine</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">machine</span> <span class="ow">in</span> <span class="n">NON_X86_MACHINES</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_platform</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">machine</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">elif</span> <span class="n">_platform</span> <span class="o">==</span> <span class="s2">&quot;zos-z&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;zos-z&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_platform</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="mi">8</span> <span class="o">*</span> <span class="n">struct</span><span class="o">.</span><span class="n">calcsize</span><span class="p">(</span><span class="s1">&#39;P&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div>
@@ -91,6 +100,34 @@ documentation.</p>
     <div class='docs'>
       <div class='octowrap'>
         <a class='octothorpe' href='#section-3'>#</a>
+      </div>
+      <p>Define a predictable mapping of url &lt;-&gt; repodata filename on the</p>
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre><span class="k">def</span> <span class="nf">repodata_identifiers</span><span class="p">(</span><span class="n">directory</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span> <span class="n">channel_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">subdir</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div>
+  <div class='section' id='section-4'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-4'>#</a>
+      </div>
+      <p>filesystem that is a function <code>f(directory, channel_url, subdir)</code> this
+allows for the repodata to be efficiently cached.</p>
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre>    <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">channel_url</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">subdir</span><span class="si">}</span><span class="s2">/repodata.json.bz2&quot;</span>
+    <span class="n">url_hash</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">url</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">8</span><span class="p">]</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="n">directory</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;repodata-</span><span class="si">{</span><span class="n">subdir</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">url_hash</span><span class="si">}</span><span class="s2">.json.bz2&quot;</span>
+    <span class="k">return</span> <span class="n">filename</span><span class="p">,</span> <span class="n">url</span></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div>
+  <div class='section' id='section-5'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-5'>#</a>
       </div>
       
     </div>
@@ -116,10 +153,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-4'>
+  <div class='section' id='section-6'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-4'>#</a>
+        <a class='octothorpe' href='#section-6'>#</a>
       </div>
       
     </div>
@@ -131,10 +168,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-5'>
+  <div class='section' id='section-7'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-5'>#</a>
+        <a class='octothorpe' href='#section-7'>#</a>
       </div>
       
     </div>
@@ -146,10 +183,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-6'>
+  <div class='section' id='section-8'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-6'>#</a>
+        <a class='octothorpe' href='#section-8'>#</a>
       </div>
       
     </div>
@@ -166,10 +203,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-7'>
+  <div class='section' id='section-9'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-7'>#</a>
+        <a class='octothorpe' href='#section-9'>#</a>
       </div>
       
     </div>
@@ -186,10 +223,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-8'>
+  <div class='section' id='section-10'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-8'>#</a>
+        <a class='octothorpe' href='#section-10'>#</a>
       </div>
       
     </div>
@@ -204,10 +241,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-9'>
+  <div class='section' id='section-11'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-9'>#</a>
+        <a class='octothorpe' href='#section-11'>#</a>
       </div>
       
     </div>
@@ -216,10 +253,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-10'>
+  <div class='section' id='section-12'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-10'>#</a>
+        <a class='octothorpe' href='#section-12'>#</a>
       </div>
       
     </div>
@@ -276,10 +313,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-11'>
+  <div class='section' id='section-13'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-11'>#</a>
+        <a class='octothorpe' href='#section-13'>#</a>
       </div>
       
     </div>
@@ -291,10 +328,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-12'>
+  <div class='section' id='section-14'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-12'>#</a>
+        <a class='octothorpe' href='#section-14'>#</a>
       </div>
       
     </div>
@@ -306,10 +343,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-13'>
+  <div class='section' id='section-15'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-13'>#</a>
+        <a class='octothorpe' href='#section-15'>#</a>
       </div>
       
     </div>
@@ -326,10 +363,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-14'>
+  <div class='section' id='section-16'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-14'>#</a>
+        <a class='octothorpe' href='#section-16'>#</a>
       </div>
       
     </div>
@@ -340,10 +377,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-15'>
+  <div class='section' id='section-17'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-15'>#</a>
+        <a class='octothorpe' href='#section-17'>#</a>
       </div>
       
     </div>
@@ -355,15 +392,21 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-16'>
+  <div class='section' id='section-18'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-16'>#</a>
+        <a class='octothorpe' href='#section-18'>#</a>
       </div>
       
     </div>
     <div class='code'>
-      <div class="highlight"><pre><span class="k">def</span> <span class="nf">select_package</span><span class="p">(</span><span class="n">available_packages</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">],</span> <span class="n">stack</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">],</span> <span class="n">package_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">initial_constraints</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]):</span>
+      <div class="highlight"><pre><span class="k">def</span> <span class="nf">select_package</span><span class="p">(</span><span class="n">available_packages</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">],</span> <span class="n">stack</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">],</span> <span class="n">package_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">initial_constraints</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span> <span class="n">initial_package</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+    <span class="n">iterator</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">available_packages</span><span class="p">[</span><span class="n">package_name</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">initial_package</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">package</span> <span class="ow">in</span> <span class="n">iterator</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">package</span> <span class="o">==</span> <span class="n">initial_package</span><span class="p">:</span>
+                <span class="k">break</span>
+
     <span class="k">for</span> <span class="n">package</span> <span class="ow">in</span> <span class="n">available_packages</span><span class="p">[</span><span class="n">package_name</span><span class="p">]:</span>
         <span class="n">_stack</span> <span class="o">=</span> <span class="n">stack</span> <span class="o">+</span> <span class="p">[</span><span class="n">package</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">verify_constraints</span><span class="p">(</span><span class="n">_stack</span><span class="p">,</span> <span class="n">initial_constraints</span><span class="p">):</span>
@@ -372,10 +415,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-17'>
+  <div class='section' id='section-19'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-17'>#</a>
+        <a class='octothorpe' href='#section-19'>#</a>
       </div>
       
     </div>
@@ -395,10 +438,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-18'>
+  <div class='section' id='section-20'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-18'>#</a>
+        <a class='octothorpe' href='#section-20'>#</a>
       </div>
       
     </div>
@@ -413,10 +456,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-19'>
+  <div class='section' id='section-21'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-19'>#</a>
+        <a class='octothorpe' href='#section-21'>#</a>
       </div>
       
     </div>
@@ -432,10 +475,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-20'>
+  <div class='section' id='section-22'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-20'>#</a>
+        <a class='octothorpe' href='#section-22'>#</a>
       </div>
       
     </div>
@@ -443,27 +486,56 @@ documentation.</p>
       <div class="highlight"><pre><span class="k">def</span> <span class="nf">_dummy_solve</span><span class="p">(</span><span class="n">available_packages</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">],</span> <span class="n">stack</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">],</span> <span class="n">initial_constraints</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]):</span>
     <span class="n">constraints</span> <span class="o">=</span> <span class="n">collect_constraints</span><span class="p">(</span><span class="n">stack</span><span class="p">,</span> <span class="n">initial_constraints</span><span class="p">)</span>
     <span class="n">stack_package_names</span> <span class="o">=</span> <span class="p">{</span><span class="n">_</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">stack</span><span class="p">}</span>
+    <span class="n">package_name</span> <span class="o">=</span> <span class="p">[</span><span class="n">_</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">constraints</span> <span class="k">if</span> <span class="n">_</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">stack_package_names</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">previous_package</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">while</span> <span class="n">constraints</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">!=</span> <span class="n">stack_package_names</span><span class="p">:</span>
-        <span class="k">for</span> <span class="n">package_name</span> <span class="ow">in</span> <span class="p">(</span><span class="n">constraints</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">-</span> <span class="n">stack_package_names</span><span class="p">):</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">stack</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">30</span><span class="p">:</span>
-                <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">_</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">stack</span><span class="p">]</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;stack size is big </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-
-            <span class="n">package</span> <span class="o">=</span> <span class="n">select_package</span><span class="p">(</span><span class="n">available_packages</span><span class="p">,</span> <span class="n">stack</span><span class="p">,</span> <span class="n">package_name</span><span class="p">,</span> <span class="n">initial_constraints</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">package</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;package </span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s1"> not found need to back track </span><span class="si">{</span><span class="n">stack</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-            <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">package</span><span class="p">)</span>
-
-        <span class="n">constraints</span> <span class="o">=</span> <span class="n">collect_constraints</span><span class="p">(</span><span class="n">stack</span><span class="p">,</span> <span class="n">initial_constraints</span><span class="p">)</span>
-        <span class="n">stack_package_names</span> <span class="o">=</span> <span class="p">{</span><span class="n">_</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">stack</span><span class="p">}</span></pre></div>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">package</span> <span class="o">=</span> <span class="n">select_package</span><span class="p">(</span><span class="n">available_packages</span><span class="p">,</span> <span class="n">stack</span><span class="p">,</span> <span class="n">package_name</span><span class="p">,</span> <span class="n">initial_constraints</span><span class="p">,</span> <span class="n">previous_package</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">package</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-21'>
+  <div class='section' id='section-23'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-21'>#</a>
+        <a class='octothorpe' href='#section-23'>#</a>
+      </div>
+      <p>when package is None it indicates that <code>select_package</code>
+was not able to</p>
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre>            <span class="n">previous_package</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">previous_package</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">package</span><span class="p">)</span>
+
+        <span class="n">constraints</span> <span class="o">=</span> <span class="n">collect_constraints</span><span class="p">(</span><span class="n">stack</span><span class="p">,</span> <span class="n">initial_constraints</span><span class="p">)</span>
+        <span class="n">stack_package_names</span> <span class="o">=</span> <span class="p">{</span><span class="n">_</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">stack</span><span class="p">}</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">constraints</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">-</span> <span class="n">stack_package_names</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div>
+  <div class='section' id='section-24'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-24'>#</a>
+      </div>
+      <p>solve is complete since all constriaints are satisfied</p>
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre>            <span class="k">break</span>
+        <span class="k">if</span> <span class="n">previous_package</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">package_name</span> <span class="o">=</span> <span class="p">[</span><span class="n">_</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">constraints</span> <span class="k">if</span> <span class="n">_</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">stack_package_names</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">package_name</span> <span class="o">=</span> <span class="n">previous_package</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div>
+  <div class='section' id='section-25'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-25'>#</a>
       </div>
       
     </div>
@@ -477,10 +549,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-22'>
+  <div class='section' id='section-26'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-22'>#</a>
+        <a class='octothorpe' href='#section-26'>#</a>
       </div>
       
     </div>
@@ -493,10 +565,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-23'>
+  <div class='section' id='section-27'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-23'>#</a>
+        <a class='octothorpe' href='#section-27'>#</a>
       </div>
       
     </div>
@@ -509,10 +581,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-24'>
+  <div class='section' id='section-28'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-24'>#</a>
+        <a class='octothorpe' href='#section-28'>#</a>
       </div>
       
     </div>
@@ -522,10 +594,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-25'>
+  <div class='section' id='section-29'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-25'>#</a>
+        <a class='octothorpe' href='#section-29'>#</a>
       </div>
       <p>Perform a binary replacement of <code>data</code>, where <code>placeholder</code> is</p>
     </div>
@@ -534,10 +606,10 @@ documentation.</p>
     </div>
   </div>
   <div class='clearall'></div>
-  <div class='section' id='section-26'>
+  <div class='section' id='section-30'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-26'>#</a>
+        <a class='octothorpe' href='#section-30'>#</a>
       </div>
       <pre><code>replaced with ``new_prefix`` and the remaining string is padded with null
 </code></pre>
@@ -555,47 +627,30 @@ documentation.</p>
 <span class="s2">    pat = re.compile(re.escape(placeholder) + b&#39;([^</span><span class="se">\0</span><span class="s2">]*?)</span><span class="se">\0</span><span class="s2">&#39;)</span>
 <span class="s2">    return pat.sub(replace, data)</span>
 <span class="s2">#DIVIDER</span>
-<span class="s2">def replace_prefix_text(conda_prefix: pathlib.Path, filename: pathlib.Path, substring: str):</span>
-<span class="s2">    with filename.open(&quot;rb&quot;) as f:</span>
-<span class="s2">        buffer = f.read()</span>
+<span class="s2">def update_prefix(placeholder: str, file_type: str, filename: pathlib.Path, install_directory: pathlib.Path):</span>
+<span class="s2">    with filename.open(&quot;rb&quot;) as _f:</span>
+<span class="s2">        data = _f.read()</span>
 
-<span class="s2">    buffer = re.sub(re.escape(substring), re.escape(str(conda_prefix)), buffer)</span>
+<span class="s2">    if file_type == &quot;text&quot;:</span>
+<span class="s2">        data = text_replace(data, placeholder, str(install_directory))</span>
+<span class="s2">    elif file_type == &quot;binary&quot;:</span>
+<span class="s2">        data = binary_replace(data, placeholder.encode(&#39;utf-8&#39;), str(install_directory).encode(&#39;utf-8&#39;))</span>
 
-<span class="s2">    with filename.open(&quot;wb&quot;) as f:</span>
-<span class="s2">        f.write(buffer)</span>
-<span class="s2">#DIVIDER</span>
-<span class="s2">def replace_prefix_binary(conda_prefix: pathlib.Path, filename: pathlib.Path, substring: str):</span>
-<span class="s2">    with filename.open(&quot;rb&quot;) as f:</span>
-<span class="s2">        buffer = f.read()</span>
-
-<span class="s2">    substring = substring.encode(&#39;utf-8&#39;)</span>
-<span class="s2">    buffer = re.sub(re.escape(substring), re.escape(str(conda_prefix)), buffer)</span>
-
-<span class="s2">    with filename.open(&quot;w&quot;) as f:</span>
-<span class="s2">        f.write(buffer)</span>
+<span class="s2">    with filename.open(&#39;wb&#39;) as _f:</span>
+<span class="s2">        _f.write(data)</span>
 <span class="s2">#DIVIDER</span>
 <span class="s2">def fix_prefix(package_cache_directory: pathlib.Path, install_directory: pathlib.Path, package: Dict):</span>
 <span class="s2">    package_directory = package_cache_directory / f&quot;</span><span class="si">{package[&#39;name&#39;]}</span><span class="s2">-</span><span class="si">{package[&#39;version&#39;]}</span><span class="s2">-</span><span class="si">{package[&#39;build&#39;]}</span><span class="s2">&quot;</span>
-<span class="s2">    has_prefix_file = package_directory / &quot;info&quot; / &quot;has_prefix&quot;</span>
-
-<span class="s2">    if not has_prefix_file.is_file():</span>
+<span class="s2">    prefix_filename = package_directory / &quot;info&quot; / &quot;has_prefix&quot;</span>
+<span class="s2">#DIVIDER</span>
+<span class="s2">    if not prefix_filename.is_file():</span>
 <span class="s2">       return</span>
 
-<span class="s2">    with has_prefix_file.open() as f:</span>
+<span class="s2">    with prefix_filename.open() as f:</span>
 <span class="s2">        for line in f:</span>
-<span class="s2">            substring, file_type, filename = line.split()</span>
-<span class="s2">            filename_path = package_directory / filename</span>
-
-<span class="s2">            with filename_path.open(&quot;rb&quot;) as _f:</span>
-<span class="s2">                data = _f.read()</span>
-
-<span class="s2">            if file_type == &quot;text&quot;:</span>
-<span class="s2">                data = text_replace(data, substring, str(install_directory))</span>
-<span class="s2">            elif file_type == &quot;binary&quot;:</span>
-<span class="s2">                data = binary_replace(data, substring.encode(&#39;utf-8&#39;), str(install_directory).encode(&#39;utf-8&#39;))</span>
-
-<span class="s2">            with filename_path.open(&#39;wb&#39;) as _f:</span>
-<span class="s2">                _f.write(data)</span>
+<span class="s2">            tokens = [_.strip(&#39;&quot;</span><span class="se">\&#39;</span><span class="s2">&#39;) for _ in shlex.split(line, posix=False)]</span>
+<span class="s2">            placeholder, file_type, filename = tokens</span>
+<span class="s2">            update_prefix(placeholder, file_type, package_directory / filename, install_directory)</span>
 <span class="s2">#DIVIDER</span>
 <span class="s2">def detect_python_version(packages: List[Dict]):</span>
 <span class="s2">    for package in packages:</span>
@@ -605,7 +660,7 @@ documentation.</p>
 <span class="s2">#DIVIDER</span>
 <span class="s2">def copy_package(package_cache_directory: pathlib.Path, install_directory: pathlib.Path, package: Dict):</span>
 <span class="s2">    package_directory = package_cache_directory / f&quot;</span><span class="si">{package[&#39;name&#39;]}</span><span class="s2">-</span><span class="si">{package[&#39;version&#39;]}</span><span class="s2">-</span><span class="si">{package[&#39;build&#39;]}</span><span class="s2">&quot;</span>
-<span class="s2">    shutil.copytree(package_directory, install_directory, copy_function=os.link, dirs_exist_ok=True, ignore=shutil.ignore_patterns(&quot;info&quot;, &quot;libz.so.1&quot;, &quot;libz.so.1.2.11&quot;))</span>
+<span class="s2">    shutil.copytree(package_directory, install_directory, copy_function=os.link, dirs_exist_ok=True, ignore=shutil.ignore_patterns(&quot;info&quot;))</span>
 <span class="s2">#DIVIDER</span>
 <span class="s2">def install_packages(package_cache_directory: pathlib.Path, install_directory: pathlib.Path, packages: List[Dict]):</span>
 <span class="s2">    python_version = detect_python_version(packages)</span>
@@ -622,54 +677,6 @@ documentation.</p>
 <span class="s2">#DIVIDER</span>
 
 </pre></div>
-    </div>
-  </div>
-  <div class='clearall'></div>
-  <div class='section' id='section-27'>
-    <div class='docs'>
-      <div class='octowrap'>
-        <a class='octothorpe' href='#section-27'>#</a>
-      </div>
-      
-    </div>
-    <div class='code'>
-      <div class="highlight"><pre></pre></div>
-    </div>
-  </div>
-  <div class='clearall'></div>
-  <div class='section' id='section-28'>
-    <div class='docs'>
-      <div class='octowrap'>
-        <a class='octothorpe' href='#section-28'>#</a>
-      </div>
-      
-    </div>
-    <div class='code'>
-      <div class="highlight"><pre></pre></div>
-    </div>
-  </div>
-  <div class='clearall'></div>
-  <div class='section' id='section-29'>
-    <div class='docs'>
-      <div class='octowrap'>
-        <a class='octothorpe' href='#section-29'>#</a>
-      </div>
-      
-    </div>
-    <div class='code'>
-      <div class="highlight"><pre></pre></div>
-    </div>
-  </div>
-  <div class='clearall'></div>
-  <div class='section' id='section-30'>
-    <div class='docs'>
-      <div class='octowrap'>
-        <a class='octothorpe' href='#section-30'>#</a>
-      </div>
-      
-    </div>
-    <div class='code'>
-      <div class="highlight"><pre></pre></div>
     </div>
   </div>
   <div class='clearall'></div>
@@ -714,7 +721,7 @@ documentation.</p>
       <div class='octowrap'>
         <a class='octothorpe' href='#section-34'>#</a>
       </div>
-      <p>pre install</p>
+      <p>no prefixes to fix if the file &ldquo;<package-name>/info/has_prefix&rdquo; does not exist</p>
     </div>
     <div class='code'>
       <div class="highlight"><pre></pre></div>
@@ -725,6 +732,54 @@ documentation.</p>
     <div class='docs'>
       <div class='octowrap'>
         <a class='octothorpe' href='#section-35'>#</a>
+      </div>
+      
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div>
+  <div class='section' id='section-36'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-36'>#</a>
+      </div>
+      
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div>
+  <div class='section' id='section-37'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-37'>#</a>
+      </div>
+      
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div>
+  <div class='section' id='section-38'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-38'>#</a>
+      </div>
+      <p>pre install</p>
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div>
+  <div class='section' id='section-39'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-39'>#</a>
       </div>
       <p>post install should happen here share/post-install/*</p>
     </div>
