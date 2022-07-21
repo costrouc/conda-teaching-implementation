@@ -223,7 +223,13 @@ def parse_package_spec(dependency: str):
     return package_name, (version_constraint, build_constraint)
 
 
-def select_package(available_packages: Dict[str, List], stack: List[Dict], package_name: str, initial_constraints: Dict[str, Set[str]]):
+def select_package(available_packages: Dict[str, List], stack: List[Dict], package_name: str, initial_constraints: Dict[str, Set[str]], initial_package: Dict = None):
+    iterator = iter(available_packages[package_name])
+    if initial_package is not None:
+        for package in iterator:
+            if package == initial_package:
+                break
+
     for package in available_packages[package_name]:
         _stack = stack + [package]
         if verify_constraints(_stack, initial_constraints):
@@ -267,20 +273,29 @@ def dummy_solve(available_packages: Dict[str, List], package_specs: List[str]):
 def _dummy_solve(available_packages: Dict[str, List], stack: List[Dict], initial_constraints: Dict[str, Set[str]]):
     constraints = collect_constraints(stack, initial_constraints)
     stack_package_names = {_['name'] for _ in stack}
+    package_name = [_ for _ in constraints if _ not in stack_package_names][0]
+    previous_package = None
 
-    while constraints.keys() != stack_package_names:
-        for package_name in (constraints.keys() - stack_package_names):
-            if len(stack) > 30:
-                names = [_['name'] for _ in stack]
-                raise ValueError(f'stack size is big {names}')
-
-            package = select_package(available_packages, stack, package_name, initial_constraints)
-            if package is None:
-                raise ValueError(f'package {package_name} not found need to back track {stack} options {available_packages[package_name]} with constraints {constraints}')
+    while True:
+        package = select_package(available_packages, stack, package_name, initial_constraints, previous_package)
+        if package is None:
+            # when package is None it indicates that `select_package`
+            # was not able to
+            previous_package = stack.pop()
+        else:
+            previous_package = None
             stack.append(package)
 
         constraints = collect_constraints(stack, initial_constraints)
         stack_package_names = {_['name'] for _ in stack}
+
+        if len(constraints.keys() - stack_package_names) == 0:
+            # solve is complete since all constriaints are satisfied
+            break
+        if previous_package is None:
+            package_name = [_ for _ in constraints if _ not in stack_package_names][0]
+        else:
+            package_name = previous_package['name']
 
 
 
@@ -326,54 +341,6 @@ def binary_replace(data, placeholder, new_prefix):
     return pat.sub(replace, data)
 
 
-def replace_pyzzer_entry_point_shebang(all_data, placeholder, new_prefix):
-    """Code adapted from pyzzer. This is meant to deal with entry point exe's
-    created by distlib, which consist of a launcher, then a shebang, then a zip
-    archive of the entry point code to run.  We need to change the shebang.
-    """
-    # Copyright (c) 2013 Vinay Sajip.
-    #
-    # Permission is hereby granted, free of charge, to any person obtaining a copy
-    # of this software and associated documentation files (the "Software"), to deal
-    # in the Software without restriction, including without limitation the rights
-    # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    # copies of the Software, and to permit persons to whom the Software is
-    # furnished to do so, subject to the following conditions:
-    #
-    # The above copyright notice and this permission notice shall be included in
-    # all copies or substantial portions of the Software.
-    #
-    # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-    # THE SOFTWARE.
-    launcher = shebang = None
-    pos = all_data.rfind(b'PK\x05\x06')
-    if pos >= 0:
-        end_cdr = all_data[pos + 12:pos + 20]
-        cdr_size, cdr_offset = struct.unpack('<LL', end_cdr)
-        arc_pos = pos - cdr_size - cdr_offset
-        data = all_data[arc_pos:]
-        if arc_pos > 0:
-            pos = all_data.rfind(b'#!', 0, arc_pos)
-            if pos >= 0:
-                shebang = all_data[pos:arc_pos]
-                if pos > 0:
-                    launcher = all_data[:pos]
-
-        if data and shebang and launcher:
-            if hasattr(placeholder, 'encode'):
-                placeholder = placeholder.encode('utf-8')
-            if hasattr(new_prefix, 'encode'):
-                new_prefix = new_prefix.encode('utf-8')
-            shebang = shebang.replace(placeholder, new_prefix)
-            all_data = b"".join([launcher, shebang, data])
-    return all_data
-
-
 def update_prefix(placeholder: str, file_type: str, filename: pathlib.Path, install_directory: pathlib.Path):
     with filename.open("rb") as _f:
         data = _f.read()
@@ -381,10 +348,7 @@ def update_prefix(placeholder: str, file_type: str, filename: pathlib.Path, inst
     if file_type == "text":
         data = text_replace(data, placeholder, str(install_directory))
     elif file_type == "binary":
-        if sys.platform == 'win32':
-            data = replace_pyzzer_entry_point_shebang(data, placeholder.encode('utf-8'), str(install_directory))
-        else:
-            data = binary_replace(data, placeholder.encode('utf-8'), str(install_directory).encode('utf-8'))
+        data = binary_replace(data, placeholder.encode('utf-8'), str(install_directory).encode('utf-8'))
 
     with filename.open('wb') as _f:
         _f.write(data)
@@ -402,12 +366,6 @@ def fix_prefix(package_cache_directory: pathlib.Path, install_directory: pathlib
         for line in f:
             tokens = [_.strip('"\'') for _ in shlex.split(line, posix=False)]
             placeholder, file_type, filename = tokens
-
-            if sys.platform == 'win32' and file_type == 'text':
-                # force all prefix replacements to forward slashes to simplify need to
-                # escape backslashes replace with unix-style path separators
-                filename = filename.replace('\\', '/')
-
             update_prefix(placeholder, file_type, package_directory / filename, install_directory)
 
 
