@@ -17,7 +17,8 @@ package_cache_directory.mkdir(exist_ok=True)
 install_directory = directory / "install_directory"
 
 packages = [
-    "python ==3.9",
+    "python ==3.9.2",
+    "flask",
 ]
 
 print('detected platform subdir', conda.platform_subdir())

@@ -326,6 +326,54 @@ def binary_replace(data, placeholder, new_prefix):
     return pat.sub(replace, data)
 
 
+def replace_pyzzer_entry_point_shebang(all_data, placeholder, new_prefix):
+    """Code adapted from pyzzer. This is meant to deal with entry point exe's
+    created by distlib, which consist of a launcher, then a shebang, then a zip
+    archive of the entry point code to run.  We need to change the shebang.
+    """
+    # Copyright (c) 2013 Vinay Sajip.
+    #
+    # Permission is hereby granted, free of charge, to any person obtaining a copy
+    # of this software and associated documentation files (the "Software"), to deal
+    # in the Software without restriction, including without limitation the rights
+    # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    # copies of the Software, and to permit persons to whom the Software is
+    # furnished to do so, subject to the following conditions:
+    #
+    # The above copyright notice and this permission notice shall be included in
+    # all copies or substantial portions of the Software.
+    #
+    # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    # THE SOFTWARE.
+    launcher = shebang = None
+    pos = all_data.rfind(b'PK\x05\x06')
+    if pos >= 0:
+        end_cdr = all_data[pos + 12:pos + 20]
+        cdr_size, cdr_offset = struct.unpack('<LL', end_cdr)
+        arc_pos = pos - cdr_size - cdr_offset
+        data = all_data[arc_pos:]
+        if arc_pos > 0:
+            pos = all_data.rfind(b'#!', 0, arc_pos)
+            if pos >= 0:
+                shebang = all_data[pos:arc_pos]
+                if pos > 0:
+                    launcher = all_data[:pos]
+
+        if data and shebang and launcher:
+            if hasattr(placeholder, 'encode'):
+                placeholder = placeholder.encode('utf-8')
+            if hasattr(new_prefix, 'encode'):
+                new_prefix = new_prefix.encode('utf-8')
+            shebang = shebang.replace(placeholder, new_prefix)
+            all_data = b"".join([launcher, shebang, data])
+    return all_data
+
+
 def update_prefix(placeholder: str, file_type: str, filename: pathlib.Path, install_directory: pathlib.Path):
     with filename.open("rb") as _f:
         data = _f.read()
@@ -333,7 +381,10 @@ def update_prefix(placeholder: str, file_type: str, filename: pathlib.Path, inst
     if file_type == "text":
         data = text_replace(data, placeholder, str(install_directory))
     elif file_type == "binary":
-        data = binary_replace(data, placeholder.encode('utf-8'), str(install_directory).encode('utf-8'))
+        if sys.platform == 'win32':
+            data = replace_pyzzer_entry_point_shebang(data, placeholder.encode('utf-8'), str(install_directory))
+        else:
+            data = binary_replace(data, placeholder.encode('utf-8'), str(install_directory).encode('utf-8'))
 
     with filename.open('wb') as _f:
         _f.write(data)
