@@ -52,7 +52,9 @@ NON_X86_MACHINES = {
     's390x',
 }
 
+
 # ## Download repodata
+
 
 def platform_subdir():
     """Determine the subdir that corresponds to the given platform (os
@@ -71,10 +73,9 @@ def platform_subdir():
 
 
 def repodata_identifiers(directory: pathlib.Path, channel_url: str, subdir: str):
-    """Define a predictable mapping of url <-> repodata filename on the
-    filesystem that is a function `f(directory, channel_url, subdir)` this
-    allows for the repodata to be efficiently cached.
+    """Define a predictable mapping of repodata url <-> repodata filename
 
+    A hash `f(directory, channel_url, subdir)` is created on the url to allow caching.
     """
     url = f"{channel_url}/{subdir}/repodata.json.bz2"
     url_hash = hashlib.sha256(url.encode('utf-8')).hexdigest()[:8]
@@ -83,9 +84,7 @@ def repodata_identifiers(directory: pathlib.Path, channel_url: str, subdir: str)
 
 
 def download_object_storage_file(url: str, filename: pathlib.Path, no_exist_ok: bool = False):
-    """A simple implementation to efficiently download a file from
-    S3. A small optimization was made here to only download the file
-    if it has been modified since the last time we downloaded it.
+    """Download a file from object storage only if modified since last downloaded
 
     """
     headers = {}
@@ -114,10 +113,6 @@ def download_repodata(directory: pathlib.Path, channel_url: str, subdir: str, no
 
 
 def download_channel(directory: pathlib.Path, channel_url: str, subdirs: List[str] = None, no_exist_ok: bool = False):
-    """A channel consists of a set of subdirs which have all the
-    packages needed to build an environment.
-
-    """
     subdirs = subdirs or ['noarch', platform_subdir()]
     for subdir in subdirs:
         download_repodata(directory, channel_url, subdir, no_exist_ok)
@@ -155,6 +150,9 @@ def check_build_constraint(build_constraint: str, package: Dict):
     return re.fullmatch(
         re.sub(r'\\\*', r'.*', re.escape(build_constraint)),
         package['build']) is not None
+
+
+# ## Parse and check constraints
 
 
 def check_version_compare_constraint(version_constraint: str, version: Tuple):
@@ -235,6 +233,9 @@ def check_version_constraint(version_constraint: str, package: Dict):
 def check_constraint(constraint: Tuple[str, str], package: Dict):
     version_constraint, build_constraint = constraint
     return check_version_constraint(version_constraint, package) and check_build_constraint(build_constraint, package)
+
+
+# ## Solve
 
 
 def parse_package_spec(dependency: str):
@@ -318,6 +319,8 @@ def _dummy_solve(available_packages: Dict[str, List], stack: List[Dict], initial
             package_name = previous_package['name']
 
 
+# ## Download packages to `package cache directory`
+
 
 def download_package(directory: pathlib.Path, url: str):
     filename = directory / url.split('/')[-1]
@@ -339,6 +342,9 @@ def download_packages(directory: str, packages: List[Dict], channel_url: str):
         url = f"{channel_url}/{package['subdir']}/{package['name']}-{package['version']}-{package['build']}.tar.bz2"
         download_package(directory, url)
         extract_package(directory, url)
+
+
+# ## Install packages to directory
 
 
 def text_replace(data, placeholder, new_prefix):
