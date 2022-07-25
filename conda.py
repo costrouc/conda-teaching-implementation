@@ -9,6 +9,8 @@ Have you ever wondered how Conda works? I sure have! In the process I have asked
 5. Install all packages from solve into environment `install_packages(...)`. This involes a hardlink copy and rewriting all files in `info/has_prefix`
 
 A fully working script example can be seen in [test.py](https://github.com/costrouc/conda-teaching-implementation/blob/master/test.py).
+
+Additionally [conda documentation](https://docs.conda.io/projects/conda/en/latest/dev-guide/deep-dive-install.html) has great deep dive documentation.
 """
 
 from typing import List, Dict, Callable, Set, Tuple
