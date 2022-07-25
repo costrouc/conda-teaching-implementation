@@ -141,15 +141,19 @@ def load_packages(directory: pathlib.Path, channel_url: str, subdirs: List[str] 
 
 
 # ## Parse and check constraints
+#
+# This is a somewhat difficult stage. We have to be able to parse
+# package and build constraints.
+#
+# ### Build constraints
+#
+# Build constraints are simple expressions with regular characters and wildcards `*`. Examples include:
+#  - `py38_0`
+#  - `py38_*`
+# These expressions are fairly easy to check as seen by the short implementation in `check_build_constraint`.
 
 
 def check_build_constraint(build_constraint: str, package: Dict):
-    """Check build constraint within package depends statements
-
-    Build constraints are simple expressions with regular characters and wildcards `*`. Examples include:
-      - `py38_0`
-      - `py38_*`
-    """
     if build_constraint is None:
         return True
 
@@ -157,6 +161,35 @@ def check_build_constraint(build_constraint: str, package: Dict):
         re.sub(r'\\\*', r'.*', re.escape(build_constraint)),
         package['build']) is not None
 
+
+# ### Version constraints
+#
+# Version constriants on the other hand are a harder problem. Some examples:
+#  - `==1.2`
+#  - `<=1.2.*`
+#  - `<=2.0,>1.3`
+#  - `1.2|>3.0|<4.0,3.2`
+#
+# I hope these examples demonstrate the complexity of these
+# expressions. They are a simple language:
+#  - `|` or, `,` and operations
+#  - `<`, `<=`, `==`, `~=`, `>`, `>=`, `!=` comparisons
+#  - `1.2`, `1.2.*`, `1.2.3.4dev`
+#
+# There are many approaches to parsing expresions. Probably the
+# simplest to implement and most readable are the class of recursive
+# decent parsers. Since this is a guide focused on explaining how Conda works we have
+# chosen [recursive decent parser](https://en.wikipedia.org/wiki/Recursive_descent_parser).
+# The idea behind this implementation is represented by the following pseudocode:
+#  ```
+#  def check_version_constraint(constraint: str):
+#      split the version expression into chunks by the `and ","` operator
+#      for each chunk: `check_version_and_constraint(...)`
+#          split the chunk into subchunks by the `or "|"` operator
+#          for each subchunk: `check_version_or_constraint(...)`
+#              check the subchunk version constraint if satisfied by package `check_version_compare_constraint(...)`
+#          check that `at least one` subchunk evaulated to True
+#      check that `every chunk` evaluates to True
 
 def check_version_compare_constraint(version_constraint: str, version: Tuple):
     def _reformat_star(match):
