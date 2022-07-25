@@ -23,12 +23,11 @@ import os
 import pathlib
 import platform
 import re
-import re
-import shutil
 import shlex
+import shutil
 import ssl
-import sys
 import struct
+import sys
 import tarfile
 import urllib.request
 
