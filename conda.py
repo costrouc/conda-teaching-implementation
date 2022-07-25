@@ -290,8 +290,27 @@ def check_constraint(constraint: Tuple[str, str], package: Dict):
 # build constraint (optional). Such as `numpy`, `scipy >=1.2.3`,
 # `python-abi ==3.8 *_py38`. A user supplies a set of packages they
 # would like e.g. `numpy >=1.2 and flask` these can be thought of as
-# initial constrinats.
+# initial constriants.
 #
+# ```
+# constraints = collect_constriants(..., initial constriants)
+# stack = empty list
+# while constraints are not satisfied:
+#     select package name which has an unsatisfied constriant
+#     package_build = select build which satisfies existing constriants `select_package(...)`
+#     if not package_build exists which satifies constraints:
+#          if stack is empty here then there is no solution
+#          backtrack `stack.pop()`
+#     else:
+#          add package_build to `stack.append(...)`
+#     recompute constriaints `collect_constriants(..., initial_constraints)`
+# return stack
+# ```
+#
+# This is a correct but naive implentation. Typically if this
+# algorithm has to backtrack the solution will take a long time. Once
+# the algorithm completes a list of package builds are returned. This
+# is identical to what the user sees in a Conda explicit lockfile.
 
 def parse_package_spec(dependency: str):
     match = re.fullmatch('([^ ]+)(?: ([^ ]+))?(?: ([^ ]+))?', dependency)
@@ -378,7 +397,11 @@ def _dummy_solve(available_packages: Dict[str, List], stack: List[Dict], initial
 
 
 # ## Download packages to `package cache directory`
-
+#
+# Once we have a list of packages that satify all constriants we now
+# must download these packages to our local package cache. This step
+# is simple. For each package ensure that the package is downloaded to
+# the package cache directory and extracted within the directory.
 
 def download_package(directory: pathlib.Path, url: str):
     filename = directory / url.split('/')[-1]
@@ -403,7 +426,19 @@ def download_packages(directory: str, packages: List[Dict], channel_url: str):
 
 
 # ## Install packages to directory
-
+#
+# Once the packages have been downloaded we must now construct the
+# environment by adding all of the files from each package. Initially
+# this may look like a simple step. For each package we have to
+# execute several operations:
+#  - optionally run a pre-install phase
+#  - copy all files (using [hardlinking](https://en.wikipedia.org/wiki/Hard_link) to save space) within the package directory to the environment directory `copy_package(...)`
+#  - patch prefixes in packages `fix_prefix(...)` this ensures that environments are relocatable which is one of the huge features of Conda over other package managers. This is specified in `info/has_prefix` if there are prefixes to rewrite.
+#  - optionally run a post-install phase
+#
+# This implementation leaves out Windows due to two factors:
+#  - fixing the path prefixes in Windows exes is non-trivial due to compression and we would have to copy [a blob of code from other sources](https://github.com/conda/conda-pack/blob/main/conda_pack/prefixes.py#L126-L171) which we cannot explain well in this guide
+#  - multiple if statements and lowercasing checks to filenames since Windows is case insensitive [implementations can be seen here with all the `on_win` checks](https://github.com/conda/conda-pack/blob/main/conda_pack/prefixes.py)
 
 def text_replace(data, placeholder, new_prefix):
     return data.replace(placeholder.encode('utf-8'), new_prefix.encode('utf-8'))
