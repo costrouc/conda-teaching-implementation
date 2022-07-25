@@ -501,7 +501,24 @@ field <code>depends</code> which specifies a package, version (optional), and
 build constraint (optional). Such as <code>numpy</code>, <code>scipy &gt;=1.2.3</code>,
 <code>python-abi ==3.8 *_py38</code>. A user supplies a set of packages they
 would like e.g. <code>numpy &gt;=1.2 and flask</code> these can be thought of as
-initial constrinats.</p>
+initial constriants.</p>
+<pre><code>constraints = collect_constriants(..., initial constriants)
+stack = empty list
+while constraints are not satisfied:
+    select package name which has an unsatisfied constriant
+    package_build = select build which satisfies existing constriants `select_package(...)`
+    if not package_build exists which satifies constraints:
+         if stack is empty here then there is no solution
+         backtrack `stack.pop()`
+    else:
+         add package_build to `stack.append(...)`
+    recompute constriaints `collect_constriants(..., initial_constraints)`
+return stack
+</code></pre>
+<p>This is a correct but naive implentation. Typically if this
+algorithm has to backtrack the solution will take a long time. Once
+the algorithm completes a list of package builds are returned. This
+is identical to what the user sees in a Conda explicit lockfile.</p>
     </div>
     <div class='code'>
       <div class="highlight"><pre></pre></div>
@@ -680,6 +697,10 @@ was not able to</p>
         <a class='octothorpe' href='#section-33'>#</a>
       </div>
       <h2>Download packages to <code>package cache directory</code></h2>
+<p>Once we have a list of packages that satify all constriants we now
+must download these packages to our local package cache. This step
+is simple. For each package ensure that the package is downloaded to
+the package cache directory and extracted within the directory.</p>
     </div>
     <div class='code'>
       <div class="highlight"><pre></pre></div>
@@ -741,6 +762,17 @@ was not able to</p>
         <a class='octothorpe' href='#section-37'>#</a>
       </div>
       <h2>Install packages to directory</h2>
+<p>Once the packages have been downloaded we must now construct the
+environment by adding all of the files from each package. Initially
+this may look like a simple step. For each package we have to
+execute several operations:
+ - optionally run a pre-install phase
+ - copy all files (using <a href="https://en.wikipedia.org/wiki/Hard_link">hardlinking</a> to save space) within the package directory to the environment directory <code>copy_package(...)</code>
+ - patch prefixes in packages <code>fix_prefix(...)</code> this ensures that environments are relocatable which is one of the huge features of Conda over other package managers. This is specified in <code>info/has_prefix</code> if there are prefixes to rewrite.
+ - optionally run a post-install phase</p>
+<p>This implementation leaves out Windows due to two factors:
+ - fixing the path prefixes in Windows exes is non-trivial due to compression and we would have to copy <a href="https://github.com/conda/conda-pack/blob/main/conda_pack/prefixes.py#L126-L171">a blob of code from other sources</a> which we cannot explain well in this guide
+ - multiple if statements and lowercasing checks to filenames since Windows is case insensitive <a href="https://github.com/conda/conda-pack/blob/main/conda_pack/prefixes.py">implementations can be seen here with all the <code>on_win</code> checks</a></p>
     </div>
     <div class='code'>
       <div class="highlight"><pre></pre></div>
