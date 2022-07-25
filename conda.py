@@ -272,7 +272,26 @@ def check_constraint(constraint: Tuple[str, str], package: Dict):
 
 
 # ## Solve
-
+#
+# The Conda solve step is an [NP complete
+# problem](https://en.wikipedia.org/wiki/NP-completeness) meaning that
+# this is a hard problem which no perfect solution. Conda and mamba
+# both use efficient solvers for these problems called [SAT
+# solvers](https://en.wikipedia.org/wiki/SAT_solver). However since
+# this is a guide trying to explain how Conda works and only use the
+# stdlib we would like to use a simpler approach with the downside
+# that the performance is abysmal compared to Conda and Mamabas
+# approach. This is yet another reason why this is not even suitable
+# as a reference implementation.
+#
+# For solving we use depth first traversal to explore the "graph" of
+# available packages. Every package built in conda has a metadata
+# field `depends` which specifies a package, version (optional), and
+# build constraint (optional). Such as `numpy`, `scipy >=1.2.3`,
+# `python-abi ==3.8 *_py38`. A user supplies a set of packages they
+# would like e.g. `numpy >=1.2 and flask` these can be thought of as
+# initial constrinats.
+#
 
 def parse_package_spec(dependency: str):
     match = re.fullmatch('([^ ]+)(?: ([^ ]+))?(?: ([^ ]+))?', dependency)
@@ -281,6 +300,9 @@ def parse_package_spec(dependency: str):
 
 
 def select_package(available_packages: Dict[str, List], stack: List[Dict], package_name: str, initial_constraints: Dict[str, Set[str]], initial_package: Dict = None):
+    """Select a build of a given package name which satisfies all existing constriants
+
+    """
     iterator = iter(available_packages[package_name])
     if initial_package is not None:
         for package in iterator:
